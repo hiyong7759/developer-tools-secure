@@ -304,16 +304,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServers() {
-        val pid = Process.myPid()
-        Log.d(TAG, "PID: $pid")
-
-        val httpPort = prefs.getInt("cdp_http_port", CDP_HTTP_PORT)
-        val wsPort = prefs.getInt("cdp_ws_port", CDP_WS_PORT)
-
-        cdpBridge = CDPBridge(httpPort, wsPort).apply { start(pid) }
         devToolsServer = DevToolsServer(this@MainActivity, DEVTOOLS_PORT).apply { start() }
 
-        Log.d(TAG, "Servers started - HTTP:$httpPort WS:$wsPort DevTools:$DEVTOOLS_PORT")
+        Log.d(TAG, "DevTools server started - DevTools:$DEVTOOLS_PORT")
+    }
+
+    /**
+     * 원격 조종 포트(9222/9223)는 개발자 도구를 보는 동안에만 연다.
+     * 앱을 켜 두는 내내 열어 두면 같은 기기의 다른 앱이 그동안 브라우저를 조종할 수 있다.
+     * 9224(DevToolsServer)는 화면 파일만 제공하므로 앱 시작 때부터 둔다.
+     */
+    private fun startCdpBridge() {
+        cdpBridge?.stop()
+        val httpPort = prefs.getInt("cdp_http_port", CDP_HTTP_PORT)
+        val wsPort = prefs.getInt("cdp_ws_port", CDP_WS_PORT)
+        cdpBridge = CDPBridge(httpPort, wsPort).apply { start(Process.myPid()) }
+    }
+
+    private fun stopCdpBridge() {
+        cdpBridge?.stop()
+        cdpBridge = null
     }
 
     // ─── DevTools ────────────────────────────────────────
@@ -347,6 +357,8 @@ class MainActivity : AppCompatActivity() {
         divider.visibility = View.VISIBLE
         devtoolsWebView.visibility = View.VISIBLE
 
+        // 아래 /json 조회보다 먼저 포트가 열려 있어야 한다(start()가 끝나면 이미 LISTEN 상태)
+        startCdpBridge()
         val cdpPort = prefs.getInt("cdp_http_port", CDP_HTTP_PORT)
 
         // Discover the browser WebView's page ID from CDP /json endpoint
@@ -414,6 +426,7 @@ class MainActivity : AppCompatActivity() {
         divider.visibility = View.GONE
         devtoolsWebView.visibility = View.GONE
         devtoolsWebView.loadUrl("about:blank")
+        stopCdpBridge()
 
         btnDevTools.setColorFilter(Color.parseColor("#aaaaaa"))
         isDevToolsVisible = false
@@ -689,7 +702,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cdpBridge?.stop()
+        stopCdpBridge()
         devToolsServer?.stop()
         devtoolsWebView.destroy()
         tabManager.destroyAll()
