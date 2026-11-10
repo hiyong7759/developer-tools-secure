@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
         private const val CDP_HTTP_PORT = 9222
         private const val CDP_WS_PORT = 9223
         private const val DEVTOOLS_PORT = 9224
+        // 배율 메뉴에서 고를 수 있는 값(%)
+        private val ZOOM_STEPS = intArrayOf(75, 90, 100, 110, 125, 150)
     }
 
     // Views
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     private var isDevToolsVisible = false
     private var isTabStripVisible = false
     private var dockMode = DockMode.BOTTOM
+    private var devtoolsZoom = 100
     private lateinit var prefs: SharedPreferences
 
     enum class DockMode { BOTTOM, RIGHT }
@@ -68,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences("devbrowser_settings", Context.MODE_PRIVATE)
+        devtoolsZoom = prefs.getInt("devtools_zoom", 100)
 
         findViews()
         setupWindowInsets()
@@ -136,6 +140,7 @@ class MainActivity : AppCompatActivity() {
             onTitleChanged = { _ -> updateTabStrip() }
         )
 
+        tabManager.pageZoom = prefs.getInt("page_zoom", 100)
         tabManager.updateDesktopMode(prefs.getBoolean("desktop_mode_default", true))
     }
 
@@ -173,12 +178,17 @@ class MainActivity : AppCompatActivity() {
             domStorageEnabled = true
             allowFileAccess = true
             allowContentAccess = true
-            useWideViewPort = true
-            loadWithOverviewMode = true
+            // 개발자 도구 화면(devtools_app.html)에는 viewport 메타가 없다. 와이드 뷰포트를 켜 두면
+            // 약 980px 가상 폭으로 그린 뒤 패널 폭에 맞춰 확대·축소되어, 창이나 패널 크기를 바꿀 때마다
+            // 글자 크기가 변했다. 끄면 패널 폭이 그대로 화면 폭이 되어 글자 크기가 일정하다.
+            useWideViewPort = false
+            loadWithOverviewMode = false
             @Suppress("DEPRECATION")
             allowUniversalAccessFromFileURLs = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
+        // 크기 조절은 사용자가 메뉴에서 직접 고른 값(기본 100%)으로만 한다
+        devtoolsWebView.setInitialScale(TabManager.initialScalePercent(this, devtoolsZoom))
 
         devtoolsWebView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
@@ -359,6 +369,14 @@ class MainActivity : AppCompatActivity() {
 
         // 아래 /json 조회보다 먼저 포트가 열려 있어야 한다(start()가 끝나면 이미 LISTEN 상태)
         startCdpBridge()
+        loadDevToolsFrontend()
+
+        btnDevTools.setColorFilter(Color.parseColor("#4fc3f7"))
+        isDevToolsVisible = true
+    }
+
+    /** 열려 있는 페이지의 ID를 찾아 개발자 도구 화면을 (다시) 불러온다. 배율을 바꿀 때도 이걸로 다시 그린다. */
+    private fun loadDevToolsFrontend() {
         val cdpPort = prefs.getInt("cdp_http_port", CDP_HTTP_PORT)
 
         // Discover the browser WebView's page ID from CDP /json endpoint
@@ -412,9 +430,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
-
-        btnDevTools.setColorFilter(Color.parseColor("#4fc3f7"))
-        isDevToolsVisible = true
     }
 
     private fun hideDevTools() {
@@ -672,6 +687,23 @@ class MainActivity : AppCompatActivity() {
                     sendInspectCommand()
                     true
                 }
+                R.id.menu_devtools_zoom -> {
+                    showZoomDialog("개발자 도구 배율", devtoolsZoom) { zoom ->
+                        devtoolsZoom = zoom
+                        prefs.edit().putInt("devtools_zoom", zoom).apply()
+                        devtoolsWebView.setInitialScale(TabManager.initialScalePercent(this, zoom))
+                        // 배율은 화면을 다시 불러와야 적용된다
+                        if (isDevToolsVisible) loadDevToolsFrontend()
+                    }
+                    true
+                }
+                R.id.menu_page_zoom -> {
+                    showZoomDialog("웹페이지 배율", tabManager.pageZoom) { zoom ->
+                        prefs.edit().putInt("page_zoom", zoom).apply()
+                        tabManager.updatePageZoom(zoom)
+                    }
+                    true
+                }
                 R.id.menu_close_tab -> {
                     tabManager.closeCurrentTab()
                     true
@@ -684,6 +716,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
         popup.show()
+    }
+
+    private fun showZoomDialog(title: String, current: Int, onPicked: (Int) -> Unit) {
+        val labels = ZOOM_STEPS.map { "$it%" }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(labels, ZOOM_STEPS.indexOf(current)) { dialog, which ->
+                onPicked(ZOOM_STEPS[which])
+                dialog.dismiss()
+            }
+            .show()
     }
 
     // ─── Lifecycle ───────────────────────────────────────

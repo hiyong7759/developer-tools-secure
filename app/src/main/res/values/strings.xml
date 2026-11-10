@@ -14,4 +14,6 @@
     <string name="developer_tools">Developer Tools</string>
     <string name="dock_bottom">Dock to Bottom</string>
     <string name="dock_right">Dock to Right</string>
+    <string name="devtools_zoom">DevTools Zoom</string>
+    <string name="page_zoom">Page Zoom</string>
 </resources>

@@ -28,6 +28,14 @@ class TabManager(
 ) {
     companion object {
         private const val TAG = "TabManager"
+
+        /**
+         * WebView.setInitialScale은 값을 "CSS 1px = 화면 실제 픽셀 1개" 기준(%)으로 해석한다.
+         * 그래서 100을 그대로 넘기면 글자가 화면 밀도만큼(예: 2.6배) 작아진다.
+         * 화면 밀도를 곱해야 배율 100%가 보통 크기(CSS 1px = 1dp)가 된다.
+         */
+        fun initialScalePercent(context: Context, zoomPercent: Int): Int =
+            (zoomPercent * context.resources.displayMetrics.density).toInt()
         const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -38,6 +46,9 @@ class TabManager(
     private var nextId = 0
     var isDesktopMode = true
         private set
+
+    /** 웹페이지 배율(%). 모든 탭과 새 탭에 같은 값을 쓴다. */
+    var pageZoom = 100
 
     val activeTab: Tab? get() = tabs.getOrNull(activeTabIndex)
     val tabCount: Int get() = tabs.size
@@ -103,6 +114,7 @@ class TabManager(
 
             userAgentString = if (isDesktopMode) DESKTOP_USER_AGENT else null
         }
+        webView.setInitialScale(initialScalePercent(context, pageZoom))
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
@@ -154,6 +166,13 @@ class TabManager(
                 if (enabled) DESKTOP_USER_AGENT else null
         }
         activeTab?.webView?.reload()
+    }
+
+    fun updatePageZoom(zoom: Int) {
+        pageZoom = zoom
+        tabs.forEach { it.webView.setInitialScale(initialScalePercent(context, zoom)) }
+        // 배율은 페이지를 다시 불러와야 적용된다
+        tabs.forEach { it.webView.reload() }
     }
 
     fun destroyAll() {

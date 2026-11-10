@@ -25,6 +25,12 @@
         android:id="@+id/menu_dock_right"
         android:title="@string/dock_right" />
     <item
+        android:id="@+id/menu_devtools_zoom"
+        android:title="@string/devtools_zoom" />
+    <item
+        android:id="@+id/menu_page_zoom"
+        android:title="@string/page_zoom" />
+    <item
         android:id="@+id/menu_settings"
         android:title="@string/settings" />
 </menu>
