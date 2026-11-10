@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Developer Tools Browser by Unix Shells</string>
+    <string name="app_name">Developer Tools Browser by Unix Shells Secure</string>
     <string name="url_hint">Enter URL or search</string>
     <string name="devtools">DevTools</string>
     <string name="inspect">Inspect Element</string>

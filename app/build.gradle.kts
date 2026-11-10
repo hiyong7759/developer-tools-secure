@@ -18,7 +18,8 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.unixshells.devbrowser"
+        // 앱 ID: Play 스토어 원본(com.unixshells.devbrowser)과 겹치면 설치 실패·원본 업데이트 덮어쓰기가 생겨 .secure로 분리
+        applicationId = "com.unixshells.devbrowser.secure"
         minSdk = 35
         targetSdk = 35
         versionCode = 3
