@@ -55,8 +55,10 @@ class CDPBridge(
         try {
             // 보안 수정: 이 포트는 인증 없이 브라우저를 원격 조종(쿠키 탈취, JS 실행)할 수 있다.
             // 예전에는 ServerSocket(port)라서 0.0.0.0에 열려 같은 와이파이·VPN의 누구나 접속할 수 있었다.
-            // 이 기기 안(127.0.0.1)에서만 접속되도록 루프백 주소에 묶는다.
-            val server = ServerSocket(port, 50, InetAddress.getLoopbackAddress())
+            // 이 기기 안에서만 접속되도록 루프백 주소에 묶는다.
+            // getLoopbackAddress()는 기기에 따라 ::1(IPv6)을 돌려주는데, 앱은 127.0.0.1(IPv4)로
+            // 접속하므로 연결이 거부되어 개발자 도구가 먹통이 된다. 그래서 127.0.0.1을 직접 지정한다.
+            val server = ServerSocket(port, 50, InetAddress.getByName("127.0.0.1"))
             if (port == httpPort) httpServer = server else wsServer = server
             server.reuseAddress = true
             Log.d(TAG, "Proxy listening on port $port")
