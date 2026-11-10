@@ -6,6 +6,7 @@ import android.util.Log
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import kotlin.concurrent.thread
@@ -52,7 +53,10 @@ class CDPBridge(
 
     private fun runProxy(port: Int) {
         try {
-            val server = ServerSocket(port)
+            // 보안 수정: 이 포트는 인증 없이 브라우저를 원격 조종(쿠키 탈취, JS 실행)할 수 있다.
+            // 예전에는 ServerSocket(port)라서 0.0.0.0에 열려 같은 와이파이·VPN의 누구나 접속할 수 있었다.
+            // 이 기기 안(127.0.0.1)에서만 접속되도록 루프백 주소에 묶는다.
+            val server = ServerSocket(port, 50, InetAddress.getLoopbackAddress())
             if (port == httpPort) httpServer = server else wsServer = server
             server.reuseAddress = true
             Log.d(TAG, "Proxy listening on port $port")

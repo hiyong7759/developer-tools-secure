@@ -16,7 +16,12 @@ import java.io.IOException
 class DevToolsServer(
     private val context: Context,
     port: Int = 9224
-) : NanoHTTPD(port) {
+) : NanoHTTPD(
+    // 보안 수정: NanoHTTPD(port)는 0.0.0.0에 열려 같은 와이파이·VPN의 누구나 이 서버에 접속할 수 있었다.
+    // 앱 안의 WebView만 쓰므로 이 기기 안(127.0.0.1)에서만 접속되도록 묶는다.
+    "127.0.0.1",
+    port
+) {
 
     // Constants are in the companion object at the bottom of the class
 
