@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  http 주소도 열리게 한다. 예전에는 localhost·127.0.0.1·10.0.2.2에만 http를 허용해서,
+  VPN 너머 개발 서버(http://내부망IP:포트)를 열면 ERR_CLEARTEXT_NOT_PERMITTED가 났다.
+  이 설정 파일은 IP 대역(예: 192.168.x.x) 지정을 지원하지 않아 대역만 허용할 수 없으므로,
+  일반 크롬처럼 http 전체를 허용한다. 시스템 인증서 신뢰는 그대로 둔다.
+-->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-    </domain-config>
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
