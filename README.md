@@ -1,37 +1,29 @@
-# Developer Tools Browser by Unix Shells
+# DevTools Secure
 
-A browser for Android with built-in Chrome DevTools. Built for developers who code on Android.
+Android용 브라우저에 크롬 개발자 도구를 붙인 앱 [Developer Tools Browser](https://github.com/unixshells/developer-tools)(Unix Shells, MIT 라이선스)를 고친 버전입니다. 원본의 전체 커밋 기록을 그대로 두고 그 위에 수정 커밋을 쌓았습니다.
 
-## What this is
+- 원본: https://github.com/unixshells/developer-tools
+- 기준 커밋: `a9ca6a4` (원본 2026-03-18)
+- 이 버전: 0.2.0 (앱 ID `com.unixshells.devbrowser.secure`, 앱 이름 "DevTools Secure")
 
-An Android browser that gives you real Chrome DevTools — Elements, Console, Network, Sources, Performance, Lighthouse, and everything else — running entirely on your phone. No laptop required.
+## 바뀐 것
 
-## Why
+**보안**
+- 브라우저 원격 조종 포트(9222/9223)와 개발자 도구 화면 서버(9224)가 모든 네트워크에 열려 있던 것을, 이 기기 안(127.0.0.1)에서만 접속되게 바꿨습니다. 원본은 같은 와이파이·VPN의 누구나 인증 없이 접속해 쿠키를 읽고 스크립트를 실행할 수 있었습니다.
+- 원격 조종 포트는 개발자 도구를 보는 동안에만 열고, 닫을 때 남은 연결도 끊습니다.
 
-Android can run a terminal. It can run code editors and dev servers. But it can't do desktop browsing with developer tools. This is that missing piece.
+**동작**
+- `http` 주소를 모두 열 수 있게 했습니다. 원본은 `localhost`, `127.0.0.1`, `10.0.2.2`만 허용해서 사내 개발 서버(`http://내부망IP:포트`)가 막혔습니다.
+- 개발자 도구와 웹페이지의 글자 크기가 창 크기에 따라 변하던 것을 고정하고, 두 영역의 배율(75~150%)을 따로 고르게 했습니다.
+- 개발자 도구 위치(아래/오른쪽)를 화면 크기에 따라 자동으로 바꾸지 않고 사용자가 고른 대로 유지합니다. 툴바에 전환 버튼을 두었고, 위치와 분할 비율을 기억합니다.
+- 모바일/PC 모드가 화면 폭까지 바꾸게 했습니다. 모바일은 폭을 고정(360/390/412/768)해 가운데 표시하고, PC는 창 폭 전체를 씁니다. 원본은 User-Agent만 바꿔서 넓은 창에서는 차이가 없었습니다.
+- 창 크기를 바꿔도 열어 둔 탭이 사라지지 않게 했습니다(삼성 덱스 등).
 
-## How it works
+**배포**
+- Play 스토어 원본과 함께 설치할 수 있도록 앱 ID를 분리했습니다.
+- 빌드용 JDK 경로를 JDK 21로 바꿨습니다.
+- 서명 키(`key.properties`, `*.jks`)는 저장소에 포함하지 않습니다.
 
-Two WebViews: one is your browser, the other runs the real Chrome DevTools frontend (built from Chromium source). A local TCP proxy bridges them via the Chrome DevTools Protocol. No root, no ADB, no external device needed.
+## 라이선스
 
-## Build
-
-```
-# First time: build the DevTools frontend from Chromium source
-./scripts/copy-devtools.sh
-
-# Build the APK
-./gradlew assembleDebug
-
-# Output: app/build/outputs/apk/debug/app-debug.apk
-```
-
-Requires JDK 17 and Android SDK (API 35).
-
-## License
-
-MIT. See [NOTICE](NOTICE) for third-party licenses (Chromium DevTools, NanoHTTPD, AndroidX).
-
-## By
-
-Unix Shells
+MIT. 원본의 [LICENSE](LICENSE)와 [NOTICE](NOTICE)(Chromium DevTools, NanoHTTPD, AndroidX 등 제3자 라이선스)를 그대로 유지합니다.
