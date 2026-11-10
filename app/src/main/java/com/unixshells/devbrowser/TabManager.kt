@@ -206,7 +206,7 @@ class TabManager(
         isDesktopMode = enabled
         tabs.forEach {
             applyViewSettings(it.webView)
-            it.webView.reload()
+            reloadForViewChange(it.webView)
         }
     }
 
@@ -215,8 +215,17 @@ class TabManager(
         // 배율은 페이지를 다시 불러와야 적용된다
         tabs.forEach {
             applyViewSettings(it.webView)
-            it.webView.reload()
+            reloadForViewChange(it.webView)
         }
+    }
+
+    /**
+     * reload()는 이전에 보던 화면 배율을 그대로 복원한다. 125%에서 100%로 되돌리면 배치는 100%인데
+     * 화면만 1.25배로 남아 페이지가 잘리므로(실측: iw=733, vv=1.25), 같은 주소를 새로 불러온다.
+     */
+    private fun reloadForViewChange(webView: WebView) {
+        val url = webView.url
+        if (url.isNullOrEmpty() || url == "about:blank") webView.reload() else webView.loadUrl(url)
     }
 
     fun destroyAll() {
