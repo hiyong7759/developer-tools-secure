@@ -88,6 +88,16 @@
             android:scaleType="centerInside" />
 
         <ImageButton
+            android:id="@+id/btnDock"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_dock_bottom"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Toggle Dock Position"
+            android:tint="#aaaaaa"
+            android:scaleType="centerInside" />
+
+        <ImageButton
             android:id="@+id/btnTabs"
             android:layout_width="32dp"
             android:layout_height="32dp"

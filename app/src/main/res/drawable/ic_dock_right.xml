@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 도킹 전환 버튼: 지금 개발자 도구가 오른쪽에 붙어 있다는 모양 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M3,4h18c1.1,0 2,0.9 2,2v12c0,1.1 -0.9,2 -2,2H3c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2zM3,6v12h10V6H3zM15,6v12h6V6h-6z" />
+</vector>

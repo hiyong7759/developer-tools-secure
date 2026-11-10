@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contentLayout: LinearLayout
     private lateinit var divider: View
     private lateinit var btnDevTools: ImageButton
+    private lateinit var btnDock: ImageButton
     private lateinit var btnDesktopToggle: ImageButton
     private lateinit var btnTabs: ImageButton
     private lateinit var tabStrip: HorizontalScrollView
@@ -61,6 +62,8 @@ class MainActivity : AppCompatActivity() {
     private var isTabStripVisible = false
     private var dockMode = DockMode.BOTTOM
     private var devtoolsZoom = 100
+    // 웹페이지가 차지하는 비율(0.2~0.8). px가 아니라 비율로 기억해야 창 크기가 바뀌어도 모양이 유지된다
+    private var dockRatio = 0.5f
     private lateinit var prefs: SharedPreferences
 
     enum class DockMode { BOTTOM, RIGHT }
@@ -72,6 +75,8 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("devbrowser_settings", Context.MODE_PRIVATE)
         devtoolsZoom = prefs.getInt("devtools_zoom", 100)
+        dockMode = if (prefs.getString("dock_mode", "bottom") == "right") DockMode.RIGHT else DockMode.BOTTOM
+        dockRatio = prefs.getFloat("dock_ratio", 0.5f).coerceIn(0.2f, 0.8f)
 
         findViews()
         setupWindowInsets()
@@ -107,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         contentLayout = findViewById(R.id.contentLayout)
         divider = findViewById(R.id.divider)
         btnDevTools = findViewById(R.id.btnDevTools)
+        btnDock = findViewById(R.id.btnDock)
         btnDesktopToggle = findViewById(R.id.btnDesktopToggle)
         btnTabs = findViewById(R.id.btnTabs)
         tabStrip = findViewById(R.id.tabStrip)
@@ -226,6 +232,10 @@ class MainActivity : AppCompatActivity() {
 
         btnDesktopToggle.setOnClickListener { toggleDesktopMode() }
         btnDevTools.setOnClickListener { toggleDevTools() }
+        btnDock.setOnClickListener {
+            setDockMode(if (dockMode == DockMode.BOTTOM) DockMode.RIGHT else DockMode.BOTTOM)
+        }
+        updateDockIcon()
         btnTabs.setOnClickListener { toggleTabStrip() }
         findViewById<ImageButton>(R.id.btnMenu).setOnClickListener { showMenu(it) }
 
@@ -283,31 +293,19 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDividerDrag() {
         divider.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_MOVE) {
-                val containerParams = browserContainer.layoutParams as LinearLayout.LayoutParams
-                val devParams = devtoolsWebView.layoutParams as LinearLayout.LayoutParams
-
-                if (dockMode == DockMode.BOTTOM) {
-                    val totalHeight = contentLayout.height - divider.height
-                    val browserHeight = (event.rawY - contentLayout.top).toInt()
-                        .coerceIn(totalHeight / 5, totalHeight * 4 / 5)
-                    containerParams.weight = 0f
-                    containerParams.height = browserHeight
-                    devParams.weight = 0f
-                    devParams.height = totalHeight - browserHeight
-                } else {
-                    val totalWidth = contentLayout.width - divider.width
-                    val browserWidth = (event.rawX - contentLayout.left).toInt()
-                        .coerceIn(totalWidth / 5, totalWidth * 4 / 5)
-                    containerParams.weight = 0f
-                    containerParams.width = browserWidth
-                    devParams.weight = 0f
-                    devParams.width = totalWidth - browserWidth
+            when (event.action) {
+                MotionEvent.ACTION_MOVE -> {
+                    val origin = IntArray(2)
+                    contentLayout.getLocationOnScreen(origin)
+                    val ratio = if (dockMode == DockMode.BOTTOM) {
+                        (event.rawY - origin[1]) / (contentLayout.height - divider.height)
+                    } else {
+                        (event.rawX - origin[0]) / (contentLayout.width - divider.width)
+                    }
+                    dockRatio = ratio.coerceIn(0.2f, 0.8f)
+                    applyDockLayout()
                 }
-
-                browserContainer.layoutParams = containerParams
-                devtoolsWebView.layoutParams = devParams
-                contentLayout.requestLayout()
+                MotionEvent.ACTION_UP -> prefs.edit().putFloat("dock_ratio", dockRatio).apply()
             }
             true
         }
@@ -343,29 +341,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDevTools() {
-        val containerParams = browserContainer.layoutParams as LinearLayout.LayoutParams
-        val devtoolsParams = devtoolsWebView.layoutParams as LinearLayout.LayoutParams
-
-        if (dockMode == DockMode.BOTTOM) {
-            contentLayout.orientation = LinearLayout.VERTICAL
-            containerParams.apply { weight = 1f; height = 0; width = ViewGroup.LayoutParams.MATCH_PARENT }
-            devtoolsParams.apply { weight = 1f; height = 0; width = ViewGroup.LayoutParams.MATCH_PARENT }
-            divider.layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, (6 * resources.displayMetrics.density).toInt()
-            )
-        } else {
-            contentLayout.orientation = LinearLayout.HORIZONTAL
-            containerParams.apply { weight = 1f; width = 0; height = ViewGroup.LayoutParams.MATCH_PARENT }
-            devtoolsParams.apply { weight = 1f; width = 0; height = ViewGroup.LayoutParams.MATCH_PARENT }
-            divider.layoutParams = LinearLayout.LayoutParams(
-                (6 * resources.displayMetrics.density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        browserContainer.layoutParams = containerParams
-        devtoolsWebView.layoutParams = devtoolsParams
         divider.visibility = View.VISIBLE
         devtoolsWebView.visibility = View.VISIBLE
+        applyDockLayout()
 
         // 아래 /json 조회보다 먼저 포트가 열려 있어야 한다(start()가 끝나면 이미 LISTEN 상태)
         startCdpBridge()
@@ -373,6 +351,7 @@ class MainActivity : AppCompatActivity() {
 
         btnDevTools.setColorFilter(Color.parseColor("#4fc3f7"))
         isDevToolsVisible = true
+        updateDockIcon()
     }
 
     /** 열려 있는 페이지의 ID를 찾아 개발자 도구 화면을 (다시) 불러온다. 배율을 바꿀 때도 이걸로 다시 그린다. */
@@ -432,6 +411,48 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * 사용자가 고른 도킹 위치(아래/오른쪽)와 분할 비율대로 다시 배치한다.
+     * 창 크기가 바뀌어도 위치를 바꾸지 않는다. 비율은 weight로 걸어 두어 크기가 바뀌면 같은 비율로 따라간다.
+     * (예전에는 가로면 오른쪽, 세로면 아래로 강제 전환해서 덱스 창을 조절할 때마다 선택이 덮어써졌다.)
+     */
+    private fun applyDockLayout() {
+        val containerParams = browserContainer.layoutParams as LinearLayout.LayoutParams
+        val devtoolsParams = devtoolsWebView.layoutParams as LinearLayout.LayoutParams
+        val dividerSize = (6 * resources.displayMetrics.density).toInt()
+
+        if (dockMode == DockMode.BOTTOM) {
+            contentLayout.orientation = LinearLayout.VERTICAL
+            containerParams.apply { weight = dockRatio; height = 0; width = ViewGroup.LayoutParams.MATCH_PARENT }
+            devtoolsParams.apply { weight = 1f - dockRatio; height = 0; width = ViewGroup.LayoutParams.MATCH_PARENT }
+            divider.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dividerSize)
+        } else {
+            contentLayout.orientation = LinearLayout.HORIZONTAL
+            containerParams.apply { weight = dockRatio; width = 0; height = ViewGroup.LayoutParams.MATCH_PARENT }
+            devtoolsParams.apply { weight = 1f - dockRatio; width = 0; height = ViewGroup.LayoutParams.MATCH_PARENT }
+            divider.layoutParams = LinearLayout.LayoutParams(dividerSize, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+
+        browserContainer.layoutParams = containerParams
+        devtoolsWebView.layoutParams = devtoolsParams
+        contentLayout.requestLayout()
+    }
+
+    private fun setDockMode(mode: DockMode) {
+        dockMode = mode
+        prefs.edit().putString("dock_mode", if (mode == DockMode.RIGHT) "right" else "bottom").apply()
+        updateDockIcon()
+        // 개발자 도구를 다시 불러오지 않고 자리만 옮긴다
+        if (isDevToolsVisible) applyDockLayout()
+    }
+
+    private fun updateDockIcon() {
+        btnDock.setImageResource(
+            if (dockMode == DockMode.BOTTOM) R.drawable.ic_dock_bottom else R.drawable.ic_dock_right
+        )
+        btnDock.setColorFilter(Color.parseColor(if (isDevToolsVisible) "#4fc3f7" else "#aaaaaa"))
+    }
+
     private fun hideDevTools() {
         val containerParams = browserContainer.layoutParams as LinearLayout.LayoutParams
         containerParams.apply { weight = 1f; height = 0; width = ViewGroup.LayoutParams.MATCH_PARENT }
@@ -445,6 +466,7 @@ class MainActivity : AppCompatActivity() {
 
         btnDevTools.setColorFilter(Color.parseColor("#aaaaaa"))
         isDevToolsVisible = false
+        updateDockIcon()
     }
 
     /**
@@ -674,13 +696,11 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.menu_dock_bottom -> {
-                    dockMode = DockMode.BOTTOM
-                    if (isDevToolsVisible) { hideDevTools(); showDevTools() }
+                    setDockMode(DockMode.BOTTOM)
                     true
                 }
                 R.id.menu_dock_right -> {
-                    dockMode = DockMode.RIGHT
-                    if (isDevToolsVisible) { hideDevTools(); showDevTools() }
+                    setDockMode(DockMode.RIGHT)
                     true
                 }
                 R.id.menu_inspect -> {
@@ -753,15 +773,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isDevToolsVisible) {
-            dockMode = if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                DockMode.RIGHT
-            } else {
-                DockMode.BOTTOM
-            }
-            hideDevTools()
-            showDevTools()
-        }
+        // 도킹 위치는 바꾸지 않는다. 사용자가 고른 위치와 비율 그대로 다시 배치만 한다.
+        if (isDevToolsVisible) applyDockLayout()
     }
 
     override fun onResume() {
