@@ -519,7 +519,8 @@ class MainActivity : AppCompatActivity() {
             width = FrameLayout.LayoutParams.MATCH_PARENT
             gravity = Gravity.START or Gravity.TOP
         } else {
-            val framePx = Math.ceil(tabManager.mobileWidthDp * resources.displayMetrics.density.toDouble()).toInt()
+            // 내림으로 맞춘다. 올리면 1px 넓어져 페이지가 보는 폭(innerWidth)이 선택한 폭보다 1 크게 나온다(413, 실측)
+            val framePx = (tabManager.mobileWidthDp * resources.displayMetrics.density).toInt()
             width = minOf(framePx, containerWidth)
             gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
         }
