@@ -136,6 +136,7 @@ class MainActivity : AppCompatActivity() {
                         FrameLayout.LayoutParams.MATCH_PARENT
                     )
                 )
+                applyBrowserFrame()
                 urlBar.setText(tab.url)
                 setupDownloadListener(tab.webView)
                 updateTabStrip()
@@ -147,7 +148,15 @@ class MainActivity : AppCompatActivity() {
         )
 
         tabManager.pageZoom = prefs.getInt("page_zoom", 100)
+        tabManager.mobileWidthDp = prefs.getInt("mobile_width_dp", 412)
+        tabManager.customUserAgent = prefs.getString("custom_user_agent", "") ?: ""
         tabManager.updateDesktopMode(prefs.getBoolean("desktop_mode_default", true))
+
+        // 모바일 모드에서 웹페이지 양옆의 빈 곳은 회색으로 보인다. 창 폭이 바뀌면 프레임 폭도 다시 맞춘다.
+        browserContainer.setBackgroundColor(Color.parseColor("#3a3a46"))
+        browserContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            browserContainer.post { applyBrowserFrame() }
+        }
     }
 
     private fun setupDownloadListener(webView: WebView) {
@@ -491,7 +500,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleDesktopMode() {
         tabManager.updateDesktopMode(!tabManager.isDesktopMode)
+        prefs.edit().putBoolean("desktop_mode_default", tabManager.isDesktopMode).apply()
         updateDesktopToggleIcon()
+        applyBrowserFrame()
+    }
+
+    /**
+     * PC 모드: 웹페이지가 창 폭 전체를 쓴다.
+     * 모바일 모드: 웹페이지를 고정 폭(기본 412dp)으로 가운데에 두고 양옆은 회색으로 남긴다.
+     */
+    private fun applyBrowserFrame() {
+        val webView = tabManager.activeTab?.webView ?: return
+        val params = webView.layoutParams as? FrameLayout.LayoutParams ?: return
+        val containerWidth = browserContainer.width
+        val width: Int
+        val gravity: Int
+        if (tabManager.isDesktopMode || containerWidth == 0) {
+            width = FrameLayout.LayoutParams.MATCH_PARENT
+            gravity = Gravity.START or Gravity.TOP
+        } else {
+            val framePx = Math.ceil(tabManager.mobileWidthDp * resources.displayMetrics.density.toDouble()).toInt()
+            width = minOf(framePx, containerWidth)
+            gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+        }
+        if (params.width != width || params.gravity != gravity) {
+            params.width = width
+            params.gravity = gravity
+            webView.layoutParams = params
+        }
     }
 
     private fun updateDesktopToggleIcon() {
@@ -717,6 +753,22 @@ class MainActivity : AppCompatActivity() {
                     }
                     true
                 }
+                R.id.menu_mobile_width -> {
+                    val widths = intArrayOf(360, 390, 412, 768)
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("모바일 모드 폭")
+                        .setSingleChoiceItems(
+                            widths.map { "${it}px" }.toTypedArray(),
+                            widths.indexOf(tabManager.mobileWidthDp)
+                        ) { dialog, which ->
+                            tabManager.mobileWidthDp = widths[which]
+                            prefs.edit().putInt("mobile_width_dp", widths[which]).apply()
+                            applyBrowserFrame()
+                            dialog.dismiss()
+                        }
+                        .show()
+                    true
+                }
                 R.id.menu_page_zoom -> {
                     showZoomDialog("웹페이지 배율", tabManager.pageZoom) { zoom ->
                         prefs.edit().putInt("page_zoom", zoom).apply()
@@ -788,12 +840,10 @@ class MainActivity : AppCompatActivity() {
         val blockImages = prefs.getBoolean("block_images", false)
         val customUa = prefs.getString("custom_user_agent", "") ?: ""
 
+        tabManager.customUserAgent = customUa
         tabManager.allTabs.forEach { tab ->
             tab.webView.settings.javaScriptEnabled = jsEnabled
             tab.webView.settings.blockNetworkImage = blockImages
-            if (customUa.isNotBlank()) {
-                tab.webView.settings.userAgentString = customUa
-            }
         }
     }
 

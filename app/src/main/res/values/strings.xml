@@ -16,4 +16,5 @@
     <string name="dock_right">Dock to Right</string>
     <string name="devtools_zoom">DevTools Zoom</string>
     <string name="page_zoom">Page Zoom</string>
+    <string name="mobile_width">Mobile Width</string>
 </resources>

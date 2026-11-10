@@ -36,6 +36,7 @@ class TabManager(
          */
         fun initialScalePercent(context: Context, zoomPercent: Int): Int =
             (zoomPercent * context.resources.displayMetrics.density).toInt()
+        // 기기의 기본 UA에서 Chrome 버전을 찾지 못할 때만 쓰는 값
         const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -49,6 +50,16 @@ class TabManager(
 
     /** 웹페이지 배율(%). 모든 탭과 새 탭에 같은 값을 쓴다. */
     var pageZoom = 100
+
+    /** 모바일 모드에서 웹페이지를 보여 줄 폭(dp). 창 폭이 이보다 좁으면 창 폭을 따른다. */
+    var mobileWidthDp = 412
+
+    /** 설정의 사용자 지정 User-Agent. 있으면 PC/모바일 모드의 UA보다 우선한다. */
+    var customUserAgent = ""
+        set(value) {
+            field = value
+            tabs.forEach { applyUserAgent(it.webView) }
+        }
 
     val activeTab: Tab? get() = tabs.getOrNull(activeTabIndex)
     val tabCount: Int get() = tabs.size
@@ -103,18 +114,14 @@ class TabManager(
             databaseEnabled = true
             allowFileAccess = true
             allowContentAccess = true
-            loadWithOverviewMode = true
-            useWideViewPort = true
             builtInZoomControls = true
             displayZoomControls = false
             setSupportZoom(true)
             setSupportMultipleWindows(false)
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             cacheMode = WebSettings.LOAD_DEFAULT
-
-            userAgentString = if (isDesktopMode) DESKTOP_USER_AGENT else null
         }
-        webView.setInitialScale(initialScalePercent(context, pageZoom))
+        applyViewSettings(webView)
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
@@ -159,20 +166,57 @@ class TabManager(
         return tabs.find { it.webView === webView }
     }
 
+    /**
+     * 현재 PC/모바일 모드와 배율을 이 탭의 WebView 설정에 반영한다.
+     *
+     * - 와이드 뷰포트(useWideViewPort)를 끄면 창(또는 모바일 프레임) 폭이 그대로 페이지 폭이 되어
+     *   PC 모드가 창 폭 전체로 보인다. 예전에는 켜 둔 채 UA만 바꿔서, 반응형 사이트는 넓은 덱스 창에서도
+     *   모바일 레이아웃이 나왔다.
+     * - 배율은 와이드 뷰포트가 꺼져 있을 때만 페이지를 다시 배치한다(켜져 있으면 핀치 확대처럼 잘림, 실측).
+     *   그래서 모바일 모드도 배율이 100%가 아니면 끈다. 100%일 때는 켜서 페이지의 viewport 메타를 따른다.
+     */
+    private fun applyViewSettings(webView: WebView) {
+        webView.settings.apply {
+            useWideViewPort = !isDesktopMode && pageZoom == 100
+            loadWithOverviewMode = false
+        }
+        webView.setInitialScale(initialScalePercent(context, pageZoom))
+        applyUserAgent(webView)
+    }
+
+    private fun applyUserAgent(webView: WebView) {
+        webView.settings.userAgentString = when {
+            customUserAgent.isNotBlank() -> customUserAgent
+            isDesktopMode -> desktopUserAgent()
+            else -> null
+        }
+    }
+
+    /** 기기의 기본 UA에서 Android·Mobile 부분을 PC로 바꾼다. Chrome 버전은 현재 WebView를 따라간다. */
+    private fun desktopUserAgent(): String {
+        val chromeMajor = Regex("""Chrome/(\d+)""")
+            .find(WebSettings.getDefaultUserAgent(context))?.groupValues?.get(1)
+            ?: return DESKTOP_USER_AGENT
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/$chromeMajor.0.0.0 Safari/537.36"
+    }
+
+    /** 모든 탭(열어 둔 다른 탭 포함)과 새 탭에 적용하고 다시 불러온다. */
     fun updateDesktopMode(enabled: Boolean) {
         isDesktopMode = enabled
-        tabs.forEach { tab ->
-            tab.webView.settings.userAgentString =
-                if (enabled) DESKTOP_USER_AGENT else null
+        tabs.forEach {
+            applyViewSettings(it.webView)
+            it.webView.reload()
         }
-        activeTab?.webView?.reload()
     }
 
     fun updatePageZoom(zoom: Int) {
         pageZoom = zoom
-        tabs.forEach { it.webView.setInitialScale(initialScalePercent(context, zoom)) }
         // 배율은 페이지를 다시 불러와야 적용된다
-        tabs.forEach { it.webView.reload() }
+        tabs.forEach {
+            applyViewSettings(it.webView)
+            it.webView.reload()
+        }
     }
 
     fun destroyAll() {
